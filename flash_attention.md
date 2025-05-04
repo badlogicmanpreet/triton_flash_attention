@@ -1,16 +1,25 @@
-# Understanding Transformer Attention: A Beginner's Guide
+## Introduction
 
-This tutorial breaks down the transformer architecture, focusing on multi-head attention mechanisms as implemented in models like GPT-2. We'll use concrete examples and intuitive explanations to make these complex concepts accessible.
+<span style="color:steelblue">This write-up is not written by the GPT</span> of any form, and believe me, it feels good to have typos and grammatical mistakes to feel more human.
+
+I do not want to talk about how neural Networks were inspired using brains, but I do believe the inspiration is quite close. Pay Attention to the closest tokens and learn the affinities between them, and the neurons in the network should fire and wire accordingly. Ultimately, this is magical and mathematical, not chemical though. 
+
+Anyway, my goal was to deeply understand token Attention and implement the most efficient way to calculate it. Using flash attention out of the box was very interesting, but I was very curious to learn the math behind it. 
+
+Without much of a delay, let's get started and deepdive into how the <span style="color:steelblue">Neurons that fire together... wire together (a.k.a Hebbis Theory)</span>
+
 
 ## Table of Contents
-1. [Transformer Architecture Overview](#transformer-architecture-overview)
-2. [Understanding Transformer Blocks](#understanding-transformer-blocks)
-3. [Self-Attention Mechanism](#self-attention-mechanism)
-4. [Multi-Head Attention](#multi-head-attention)
-5. [Practical Example: Self-Attention Calculation](#practical-example-self-attention-calculation)
-6. [Summary](#summary)
+1. [Attention Overview](#transformer-architecture-overview)
+   - [Understanding Transformer Blocks](#understanding-transformer-blocks)
+   - [Self-Attention Mechanism](#self-attention-mechanism)
+   - [Multi-Head Attention](#multi-head-attention)
+   - [Practical Example: Self-Attention Calculation](#practical-example-self-attention-calculation)
+2. [Why Flash Attention?](#why-flash-attention)
+3. [Online Softmax Function](#online-softmax-function)
+4. [Tiles:Blocks - Applied To Attention](#tilesblocks-applied-to-attention)
 
-## Transformer Architecture Overview
+## Attention Overview
 
 A modern transformer model like GPT-2 consists of stacked layers (blocks), each containing attention mechanisms and feed-forward neural networks. Here's a simplified view:
 
@@ -32,7 +41,7 @@ The two key components of each block are:
 - **Self-Attention**: Allows tokens to "look at" other tokens in the sequence
 - **Feed-Forward Network**: Processes each token independently
 
-## Understanding Transformer Blocks
+### Understanding Transformer Blocks
 
 Transformer blocks are processed **sequentially**, not in parallel. The output of one block becomes the input to the next.
 
@@ -45,11 +54,11 @@ n_layer: int = 12  # number of transformer blocks
 
 Each block enriches the representation of the input sequence, with higher blocks capturing increasingly complex patterns and relationships between tokens.
 
-## Self-Attention Mechanism
+### Self-Attention Mechanism
 
 Self-attention is the heart of transformers. It allows each token in a sequence to "pay attention" to all other tokens (in GPT, only to previous tokens due to the causal mask).
 
-### The Key Components
+#### The Key Components
 
 For each token, we calculate three vectors:
 - **Query (Q)**: What the token is "looking for"
@@ -65,7 +74,7 @@ qkv = self.c_attn(x)
 q, k, v = qkv.split(self.n_embd, dim=2)
 ```
 
-### Attention Calculation
+#### Attention Calculation
 
 The attention mechanism calculates how much each token should attend to every other token:
 
@@ -83,7 +92,7 @@ att = F.softmax(att, dim=-1)
 y = att @ v
 ```
 
-## Multi-Head Attention
+### Multi-Head Attention
 
 Instead of performing a single attention function, transformers use **multiple attention heads** in parallel. In GPT-2 base, there are 12 attention heads:
 
@@ -92,7 +101,7 @@ Instead of performing a single attention function, transformers use **multiple a
 n_head: int = 12  # number of attention heads
 ```
 
-### Why Multiple Heads?
+#### Why Multiple Heads?
 
 Multi-head attention allows the model to:
 1. **Focus on different aspects** of relationships between tokens
@@ -100,7 +109,7 @@ Multi-head attention allows the model to:
 3. **Increase representation capacity** without increasing depth
 4. **Create specialized attention patterns** for different types of relationships
 
-### How Multi-Head Attention Works
+#### How Multi-Head Attention Works
 
 1. The input is projected into different subspaces for each head
 2. Each head performs its own self-attention calculation
@@ -125,7 +134,7 @@ y = self.c_proj(y)  # Final projection
 
 In GPT-2 base, the embedding dimension is 768, and with 12 heads, each head works with 64-dimensional vectors (768/12 = 64).
 
-## Practical Example: Self-Attention Calculation
+### Practical Example: Self-Attention Calculation
 
 Let's walk through a concrete example of how self-attention is calculated for a single head:
 
@@ -175,13 +184,39 @@ This shows:
 - Token 3 attends roughly equally to tokens 1, 2, and itself
 - Token 4 attends most strongly to itself, but also somewhat to tokens 1, 2, and 3
 
-## Summary
+## Why Flash Attention?
 
-1. **Transformer Architecture**: Consists of stacked blocks processed sequentially
-2. **Self-Attention**: Allows tokens to gather information from other tokens
-3. **Multi-Head Attention**: Enables the model to focus on different aspects of relationships simultaneously
-4. **Query, Key, Value Vectors**: Different projections of the input used to calculate attention
-5. **Attention Calculation**: Matrix multiplication of queries and keys, followed by scaling, masking, and softmax
-6. **Block Processing**: Each block enriches the representation before passing it to the next block
+The actual input and output has no change, meaning the flash attention is not calculating anything different, it is very much working on getting the attention scores or effinities between the tokens. Then why do we need flash?
+Flash is important because of the way it calculates the attention scores, meaning it improves the read/write or IO, basically the throughput.
+<TODO>
 
-The power of transformers comes from this ability to model complex relationships between tokens, with each layer and each attention head capturing different aspects of these relationships.
+## Online Softmax Function
+Following is the S (attention), P (softmax) and O (output), lets go through it step by step
+
+![SPO](/images/spo.png)
+
+Once the Q and K are multiplied, the softmax function is then applied to the output S, softmax here is applied to the complete row. This is an important aspect to understand, let us dive in
+Basic softmax implementation, applied on each element of the row, softmax is the exponential of the element normalized by the sum of exponentials of all elements. Exponential helps ensuring non-negativity i.e. keeping all values to positive, exponentials also help in enlarging the numbers to ensure the small and large numbers are clearly different, also exponentiality allows a better differentiability. 
+But there is a problem, we need to ensure that already existing large elements or numbers in the row are not becoming too large e.g. e pow 100, there we will normalize this by using x(i) - x(max), where x(max) is the maximum elements in the row. Intiutively this also means that you need to have this complete row available in the compute memory (gpu) at same time :)
+
+![Softmax](images/softmax.png)
+
+Softmax algorithm basically is a three for loop setting, first we find out the max of the elements in the row, second we calculate the normalization factor i.e. the denominator, lastly we calculate the softmax of each element in the row by dividing the numerator by denominator from the above. 
+At each step, we are using O(N) time complexity and memory reads. Three loops. Can we make this better?
+
+![Raw Softmax](/images/raw_softmax.png)
+
+Yes we can make this better and more efficient by fusing the first two operations together, meaning that we iterate through the elements row/list - calculate local maximum and simultaneously calculate the normalization using the local maximum. Question is as we move through the list (left to right), how do we then update the maximum or fill for the delta. Here is the magic of mathematics, while calculating the normalization (l), we multiple it with a correction factor called e^(local max – global max), in nutshell everytime we encounter a number bigger than the current maximum we can fix the normalization constant computed so far using the correction factor.
+
+![Online Softmax](/images/online_softmax.png)
+
+And now we have only two loops and online softmax available. This is going to be very useful when we perform flash. The code for same is <>
+
+## Tiles:Blocks - Applied To Attention
+We will now look into block matrix multiplication, blocks are collections of rows or columns grouped together for speeding up the computation in parallel. 
+
+Lets walkthrough it step by step,
+- We start with Q, K and V, each (8 tokens, 128 sequence length) divided into blocks and divide the original matrix into 4 blocks, each block with 2 tokens or 2 rows,
+
+
+

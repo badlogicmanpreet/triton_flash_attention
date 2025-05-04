@@ -193,22 +193,22 @@ Flash is important because of the way it calculates the attention scores, meanin
 ## Online Softmax Function
 Following is the S (attention), P (softmax) and O (output), lets go through it step by step
 
-![SPO](/images/spo.png)
+<img src="images/spo.png" alt="SPO" width="350" height="40">
 
 Once the Q and K are multiplied, the softmax function is then applied to the output S, softmax here is applied to the complete row. This is an important aspect to understand, let us dive in
 Basic softmax implementation, applied on each element of the row, softmax is the exponential of the element normalized by the sum of exponentials of all elements. Exponential helps ensuring non-negativity i.e. keeping all values to positive, exponentials also help in enlarging the numbers to ensure the small and large numbers are clearly different, also exponentiality allows a better differentiability. 
 But there is a problem, we need to ensure that already existing large elements or numbers in the row are not becoming too large e.g. e pow 100, there we will normalize this by using x(i) - x(max), where x(max) is the maximum elements in the row. Intiutively this also means that you need to have this complete row available in the compute memory (gpu) at same time :)
 
-![Softmax](images/softmax.png)
+<img src="images/softmax.png" alt="Softmax" width="150" height="70">
 
 Softmax algorithm basically is a three for loop setting, first we find out the max of the elements in the row, second we calculate the normalization factor i.e. the denominator, lastly we calculate the softmax of each element in the row by dividing the numerator by denominator from the above. 
 At each step, we are using O(N) time complexity and memory reads. Three loops. Can we make this better?
 
-![Raw Softmax](/images/raw_softmax.png)
+<img src="images/raw_softmax.png" alt="Raw Softmax" width="170" height="190">
 
 Yes we can make this better and more efficient by fusing the first two operations together, meaning that we iterate through the elements row/list - calculate local maximum and simultaneously calculate the normalization using the local maximum. Question is as we move through the list (left to right), how do we then update the maximum or fill for the delta. Here is the magic of mathematics, while calculating the normalization (l), we multiple it with a correction factor called e^(local max – global max), in nutshell everytime we encounter a number bigger than the current maximum we can fix the normalization constant computed so far using the correction factor.
 
-![Online Softmax](/images/online_softmax.png)
+<img src="images/online_softmax.png" alt="Online Softmax" width="170" height="190">
 
 And now we have only two loops and online softmax available. This is going to be very useful when we perform flash. The code for same is <>
 

@@ -218,5 +218,26 @@ We will now look into block matrix multiplication, blocks are collections of row
 Lets walkthrough it step by step,
 - We start with Q, K and V, each (8 tokens, 128 sequence length) divided into blocks and divide the original matrix into 4 blocks, each block with 2 tokens or 2 rows,
 
+   <img src="images/qkv.png" alt="QKV" width="300" height="170">
 
+- Next step is Q * K transpose, after blocking the size of Q is (4,1) and K is (1, 4)
 
+   <img src="images/qk_T.png" alt="QK_T" width="300" height="170">
+
+- The resultant of the above is S, the size of S will now be (4, 4), and each element will be of size (2,2)
+
+   <img src="images/s.png" alt="S" width="290" height="200">
+
+- Now we perform softmax over S, it is partial softmax i.e. we only calculate the numerator , Picture, and not the denominator - i.e. normalization, each element of S is , remember we have used local maximum here to get each P(ij) elements, which means at some point in future we need to fix and add what we lost due to not using global maximum.
+
+   <img src="images/p.png" alt="P" width="300" height="210">
+
+- Now, lets multiply with V, still we havent fixed the global maxima part 
+
+   <img src="images/o.png" alt="O" width="330" height="190">
+
+Time to fix the problem we have with each P(ij) element, since it was independently calculated with local maximum, what we can do is apply online softmax to the blocks of rows like we did in the section of softmax. 
+
+General Algorithm looks like following, each block of Q is getting multiplied with block of K, over which a softmax is performed (only numerator with local maxima), output we get is P, P is then multiplied with block of V, ultimately we get Picture 1046361237, Picture. Final outcome is O. 
+
+<img src="images/general_algo.png" alt="GAlgo" width="200" height="170">

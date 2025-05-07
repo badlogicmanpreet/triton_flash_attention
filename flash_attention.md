@@ -241,3 +241,21 @@ Time to fix the problem we have with each P(ij) element, since it was independen
 General Algorithm looks like following, each block of Q is getting multiplied with block of K, over which a softmax is performed (only numerator with local maxima), output we get is P, P is then multiplied with block of V, ultimately we get Picture 1046361237, Picture. Final outcome is O. 
 
 <img src="images/general_algo.png" alt="GAlgo" width="200" height="170">
+
+### Detailed Algorithm
+
+- We initialize maximum (m) from infinity to infinity 
+- We initialize normalization (l) 
+- We start with O which is of size (2,128) in our case above 
+- We will never normalize the softmax during the steps, we do it only at the end 
+- In Step 1 
+
+  We calculate the max m1 using the max function between the rowmax of Q1K1 and m0 
+
+  Then we calculate S1 
+
+  We calculate l1 normalization, but dont use it yet, it is the row sum of exponential of S1 – m1 added with l0 * exponential of m0 – m1. Intuitively, normalization factor at step 1 which is suppose to be the denominator, is the sum of exponentials of all elements in S1 minus the current max, we also add the previous normalization factor l0 to start fixing the global maxima problem described above. 
+
+- We then calculate P (softmax, only numerator) simply as exponential of S1 – m1
+- Output O1 is then P11 * V1 i.e. softmax * value.  
+

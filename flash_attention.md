@@ -19,6 +19,7 @@ Without much of a delay, let's get started and deepdive into how the <span style
 3. [Online Softmax Function](#online-softmax-function)
 4. [Tiles:Blocks - Applied To Attention](#tilesblocks-applied-to-attention)
 5. [Bit about GPUs](#bit-about-gpus)
+6. [Triton Implementation](#triton-implementation)
 
 ## Attention Overview
 
@@ -281,3 +282,7 @@ To illustrate how GPUs operate, consider adding two vectors of size 10. The CPU 
 <img src="images/gpu.png" alt="FinalAlgo" width="460" height="250">
 
 Imagine now a case where we have N=10^6 i.e. one million elements to be added, in this case we can divide the input N into blocks, where each block_size is N/num_cores and num_blocks(grid) is N/block_size. Now when we launch a CUDA kernel, it will assign block Ids like block0, block1 and so forth. Under each block it will assign threads/cores like T0, T1, T2... and so forth
+
+## Triton Implementation
+
+My favorite place to know triton was https://openai.com/index/triton/

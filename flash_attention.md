@@ -186,23 +186,29 @@ This shows:
 
 ## Why Flash Attention?
 
-The actual input and output has no change, meaning the flash attention is not calculating anything different, it is very much working on getting the attention scores or effinities between the tokens. Then why do we need flash?
-Flash is important because of the way it calculates the attention scores, meaning it improves the read/write or IO, basically the throughput.
-<TODO>
+Flash Attention is simply a faster way to do the same math that regular Attention does. The key difference is how it manages GPU memory.
+
+I dont know if this is a good example but may help... When a chef (the model/compute-unit) needs ingredients (data) from the refrigerator (computer memory), regular Attention keeps running back and forth, grabbing one ingredient at a time. This wastes a lot of energy and time.
+
+Flash Attention is smarter - it plans ahead and grabs multiple ingredients in one trip, then works with what it has before going back for more. The meal (the mathematical result) turns out exactly the same, but the chef saves a lot of time and energy.
+
+This memory efficiency matters because:
+- It makes AI models run much faster
+- It reduces energy consumption
+- It allows for processing longer texts or bigger images
+
+The end result is identical to regular Attention - just delivered much more efficiently.
 
 ## Online Softmax Function
 Following is the S (attention), P (softmax) and O (output), lets go through it step by step
 
 <img src="images/spo.png" alt="SPO" width="350" height="40">
 
-Once the Q and K are multiplied, the softmax function is then applied to the output S, softmax here is applied to the complete row. This is an important aspect to understand, let us dive in
-Basic softmax implementation, applied on each element of the row, softmax is the exponential of the element normalized by the sum of exponentials of all elements. Exponential helps ensuring non-negativity i.e. keeping all values to positive, exponentials also help in enlarging the numbers to ensure the small and large numbers are clearly different, also exponentiality allows a better differentiability. 
-But there is a problem, we need to ensure that already existing large elements or numbers in the row are not becoming too large e.g. e pow 100, there we will normalize this by using x(i) - x(max), where x(max) is the maximum elements in the row. Intiutively this also means that you need to have this complete row available in the compute memory (gpu) at same time :)
+Once the query (Q) and key (K) matrices are multiplied, the resulting scores matrix (S) undergoes a softmax transformation applied rowwise. Softmax converts each element into a probability by taking the exponential of the value and normalizing it against the sum of exponentials in the row. This ensures non-negative outputs and amplifies differences between small and large values, aiding model differentiation. However, to avoid extremely large exponentials (e.g., e¹⁰⁰), we apply a numerical stability trick by subtracting the row's maximum value before exponentiation. Importantly, this requires the entire row to be in GPU memory during computation.
 
 <img src="images/softmax.png" alt="Softmax" width="150" height="70">
 
-Softmax algorithm basically is a three for loop setting, first we find out the max of the elements in the row, second we calculate the normalization factor i.e. the denominator, lastly we calculate the softmax of each element in the row by dividing the numerator by denominator from the above. 
-At each step, we are using O(N) time complexity and memory reads. Three loops. Can we make this better?
+The softmax algorithm can be broken down into three main steps, typically implemented using three separate loops. First, we find the maximum value in the row to ensure numerical stability. Second, we compute the normalization factor the sum of exponentials of each adjusted element. Finally, we calculate the softmax for each element by dividing its exponential by this sum. Each step involves O(N) time complexity and memory reads, totaling three passes over the data. This raises a natural question -> can we optimize or fuse these loops for better performance?
 
 <img src="images/raw_softmax.png" alt="Raw Softmax" width="170" height="190">
 
@@ -210,53 +216,53 @@ Yes we can make this better and more efficient by fusing the first two operation
 
 <img src="images/online_softmax.png" alt="Online Softmax" width="170" height="190">
 
-And now we have only two loops and online softmax available. This is going to be very useful when we perform flash. The code for same is <>
+And now we have only two loops and online softmax available. This is going to be very useful when we perform flash.
 
 ## Tiles:Blocks - Applied To Attention
 We will now look into block matrix multiplication, blocks are collections of rows or columns grouped together for speeding up the computation in parallel. 
 
 Lets walkthrough it step by step,
-- We start with Q, K and V, each (8 tokens, 128 sequence length) divided into blocks and divide the original matrix into 4 blocks, each block with 2 tokens or 2 rows,
+- We start with Q, K and V, each (8 tokens, 128 sequence length) divided into 4 blocks, each block is made up of 2 tokens or 2 rows,
 
    <img src="images/qkv.png" alt="QKV" width="300" height="170">
 
-- Next step is Q * K transpose, after blocking the size of Q is (4,1) and K is (1, 4)
+- Next step is Q * K Transpose, after blocking the size of Q is (4,1) and K is (1, 4)
 
    <img src="images/qk_T.png" alt="QK_T" width="300" height="170">
 
-- The resultant of the above is S, the size of S will now be (4, 4), and each element will be of size (2,2)
+- The resultant of the above is S, the size of S will now be (4, 4), and each element of S will be of size (2,2)
 
    <img src="images/s.png" alt="S" width="290" height="200">
 
-- Now we perform softmax over S, it is partial softmax i.e. we only calculate the numerator , Picture, and not the denominator - i.e. normalization, each element of S is , remember we have used local maximum here to get each P(ij) elements, which means at some point in future we need to fix and add what we lost due to not using global maximum.
+- Now we perform softmax over S, it is a partial softmax i.e. we only calculate the numerator and not the denominator(a.k.a normalization). Here each element of S (Sij) is processed to get corresponding partial softmax element P(ij) for P, while doing this we only use local maximum (localrowmax(Sij)) to get each P(ij) elements, which means at some point in future we need to fix this and add back what we lost due to not using global maximum from the complete row of S.
 
    <img src="images/p.png" alt="P" width="300" height="210">
 
-- Now, lets multiply with V, still we havent fixed the global maxima part 
+- Now, lets multiply with V, at this point we still havent fixed the global maxima part described above,
 
    <img src="images/o.png" alt="O" width="330" height="190">
 
-Time to fix the problem we have with each P(ij) element, since it was independently calculated with local maximum, what we can do is apply online softmax to the blocks of rows like we did in the section of softmax. 
-
-General Algorithm looks like following, each block of Q is getting multiplied with block of K, over which a softmax is performed (only numerator with local maxima), output we get is P, P is then multiplied with block of V, ultimately we get Picture 1046361237, Picture. Final outcome is O. 
+In nutshell, the general Algorithm looks like following, each block of Q is getting multiplied with block of K, over which a partial softmax is performed (only numerator with local maxima), output we get is P, P is then multiplied with block of V, ultimately we get output O. 
 
 <img src="images/general_algo.png" alt="GAlgo" width="200" height="170">
 
 ### Detailed Algorithm
 
-- We initialize maximum (m) from infinity to infinity 
-- We initialize normalization (l) 
-- We start with O which is of size (2,128) in our case above 
-- We will never normalize the softmax during the steps, we do it only at the end 
-- In Step 1 
+Time to fix the problem we have with each P(ij) element, since it was independently calculated with local maxima, what we can do is apply online softmax to the blocks of rows.
 
-  We calculate the max m1 using the max function between the rowmax of Q1K1 and m0 
-
-  Then we calculate S1 
-
-  We calculate l1 normalization, but dont use it yet, it is the row sum of exponential of S1 – m1 added with l0 * exponential of m0 – m1. Intuitively, normalization factor at step 1 which is suppose to be the denominator, is the sum of exponentials of all elements in S1 minus the current max, we also add the previous normalization factor l0 to start fixing the global maxima problem described above. 
-
-- We then calculate P (softmax, only numerator) simply as exponential of S1 – m1
-- Output O1 is then P11 * V1 i.e. softmax * value.  
+We will have 4 steps at each row, e.g. P11V1 + P12V2 + P13V3 + P14V4, each step below is calculating the element of the row 
+ - We initialize maximum (m0) from infinity to infinity 
+ - We initialize normalization (l0) 
+ - We start with O0 which is of size (2,128) in our case above
+    - O0 here is representing each element of the row e.g. P11V1, implicitly P11 is made up of 2 blocks and 128 columns
+ - We will never normalize the softmax during the steps, we do it only at the last step
+ - In Step 1 
+    - We calculate the max m1 using the max function between the rowmax of Q1K1 and m0
+    - Then we calculate S1, 
+    - We calculate l1 normalization, but dont use it yet, it is the row sum of exponential of S1 – m1 added with l0 * exponential of m0 – m1. Intuitively, local normalization factor at step 1 which is suppose to be the denominator, is the sum of exponentials of all elements in S1 minus the current max, we also add the previous normalization factor l0 to start fixing the global maxima problem described above. 
+   - We then calculate P (softmax, only numerator) simply as exponential of S1 – m1
+   - Output O1(first row of the output) is then (P11 * V1) + O0 i.e. softmax * value + previous output
+      - At each step we multiply diagonal matrix made up of exp(m...) with output at that step, this ensures that iterative maxima is applied to both the rows of the output.
+ - We go through all the steps and at the end use final l for normalization.
 
 <img src="images/final_algo.png" alt="FinalAlgo" width="300" height="430">

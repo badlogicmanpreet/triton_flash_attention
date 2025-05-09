@@ -18,6 +18,7 @@ Without much of a delay, let's get started and deepdive into how the <span style
 2. [Why Flash Attention?](#why-flash-attention)
 3. [Online Softmax Function](#online-softmax-function)
 4. [Tiles:Blocks - Applied To Attention](#tilesblocks-applied-to-attention)
+5. [Bit about GPUs](#bit-about-gpus)
 
 ## Attention Overview
 
@@ -266,3 +267,15 @@ We will have 4 steps at each row, e.g. P11V1 + P12V2 + P13V3 + P14V4, each step 
  - We go through all the steps and at the end use final l for normalization.
 
 <img src="images/final_algo.png" alt="FinalAlgo" width="300" height="430">
+
+## Bit about GPUs
+
+Let’s briefly explore the architectures of CPUs and GPUs. CPUs are designed with dynamic memory hierarchies featuring L3, L2, and L1 caches and typically contain a few powerful cores optimized for sequential and parallel processing. In contrast, GPUs are built for high-throughput tasks, with high-bandwidth memory (e.g.HBM), and multiple control units, each with their own L1 caches. The control units is where it decides what next instruction to execute and is the most silicon-intensive and expensive part of the Chip. That is why each core/thread doesnt have its own control unit (in GPU).
+
+To illustrate how GPUs operate, consider adding two vectors of size 10. The CPU first transfers the vectors from DRAM to the GPU. The GPU then spawns a warp of 32 threads (as it operates in multiples of 32), even though only 10 threads will process meaningful data in our case. The instruction such as vector addition is stored once in the GPU’s instruction cache and broadcast to all 32 threads. Each thread executes the same instruction in parallel, but only the first 10 threads perform actual computation, the remaining 22 dont have any output. The 22 of these threads or core will have to work on the same instruction although no output, this is also called control divergence. Every thread/core has its own local data, typically held in fast-access registers.
+
+- ALUs (light green) -> These are the cores/threads
+- CTL (light blue) -> These are control units
+- L1 (light yellow) -> This is L1 cache
+
+<img src="images/gpu.png" alt="FinalAlgo" width="460" height="250">

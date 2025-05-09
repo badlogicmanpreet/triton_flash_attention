@@ -279,3 +279,5 @@ To illustrate how GPUs operate, consider adding two vectors of size 10. The CPU 
 - L1 (light yellow) -> This is L1 cache
 
 <img src="images/gpu.png" alt="FinalAlgo" width="460" height="250">
+
+Imagine now a case where we have N=10^6 i.e. one million elements to be added, in this case we can divide the input N into blocks, where each block_size is N/num_cores and num_blocks(grid) is N/block_size. Now when we launch a CUDA kernel, it will assign block Ids like block0, block1 and so forth. Under each block it will assign threads/cores like T0, T1, T2... and so forth

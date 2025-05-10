@@ -294,8 +294,8 @@ If you love AI, performance, or just the magic of computing this is your playgro
 
 ## **Acknowledgments**  
 
-A heartfelt thank you to **[Tri Dao](https://tridao.me/publications/flash2/flash2.pdf)** and **Umar Jamil**, your brilliant work on Flash Attention laid the groundwork for everything shared above. Your code wasn’t just a reference, it was the learning curve, the inspiration, and the engine behind my understanding.
+A heartfelt thank you to [Tri Dao](https://tridao.me/publications/flash2/flash2.pdf) and Umar Jamil, your brilliant work on Flash Attention laid the groundwork for everything shared above. Your code wasn’t just a reference, it was the learning curve, the inspiration, and the engine behind my understanding.
 
-A huge shoutout to **[Lambda Cloud’s GPU instances](https://cloud.lambdalabs.com/)** my goto training environment for powerful and efficient computing.
+A huge shoutout to [Lambda Cloud’s GPU instances](https://cloud.lambdalabs.com/) my goto training environment for powerful and efficient computing.
 
 Love for AI, that's all that matters!

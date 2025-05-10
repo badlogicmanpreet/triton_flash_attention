@@ -285,4 +285,8 @@ Imagine now a case where we have N=10^6 i.e. one million elements to be added, i
 
 ## Triton Implementation
 
-My favorite place to know triton was https://openai.com/index/triton/
+My favorite place to dive into Triton has to be [OpenAI's Triton page](https://openai.com/index/triton/) it's an absolute gem. It’s rare to find a language that makes you feel like you’re writing high performance code with the elegance of Python and the muscle of CUDA.
+
+One of the most fascinating examples is how **Flash Attention** is implemented. If you’ve ever wondered how large models handle attention efficiently without running into memory bottlenecks, Triton gives you the tools (and joy!) to see it firsthand. The implementation of [Triton Flash Attention](/src/triton/fused_attention.py) is a sleek, low-level dance of parallelism and precision based on the cutting edge **Flash Attention v2** algorithm from [Tri Dao](https://tridao.me/publications/flash2/flash2.pdf), which itself is an evolution of the original breakthrough described in [this paper](https://arxiv.org/abs/2205.14135).
+
+If you love AI, performance, or just the magic of computing this is your playground.

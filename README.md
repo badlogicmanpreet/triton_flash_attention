@@ -20,6 +20,7 @@ Without much of a delay, let's get started and deepdive into how the <span style
 4. [Tiles:Blocks - Applied To Attention](#tilesblocks-applied-to-attention)
 5. [Bit about GPUs](#bit-about-gpus)
 6. [Triton Implementation](#triton-implementation)
+7. [Acknowledgments](#acknowledgments)
 
 ## Attention Overview
 
@@ -290,3 +291,11 @@ My favorite place to dive into Triton has to be [OpenAI's Triton page](https://o
 One of the most fascinating examples is how **Flash Attention** is implemented. If you’ve ever wondered how large models handle attention efficiently without running into memory bottlenecks, Triton gives you the tools (and joy!) to see it firsthand. The implementation of [Triton Flash Attention](/src/triton/fused_attention.py) is a sleek, low-level dance of parallelism and precision based on the cutting edge **Flash Attention v2** algorithm from [Tri Dao](https://tridao.me/publications/flash2/flash2.pdf), which itself is an evolution of the original breakthrough described in [this paper](https://arxiv.org/abs/2205.14135).
 
 If you love AI, performance, or just the magic of computing this is your playground.
+
+## **Acknowledgments**  
+
+A heartfelt thank you to **[Tri Dao](https://tridao.me/publications/flash2/flash2.pdf)** and **Umar Jamil**, your brilliant work on Flash Attention laid the groundwork for everything shared above. Your code wasn’t just a reference, it was the learning curve, the inspiration, and the engine behind my understanding.
+
+A huge shoutout to **[Lambda Cloud’s GPU instances](https://cloud.lambdalabs.com/)** my goto training environment for powerful and efficient computing.
+
+Love for AI, that's all that matters!
